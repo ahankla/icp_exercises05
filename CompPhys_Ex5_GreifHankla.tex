@@ -1,0 +1,112 @@
+\documentclass[12pt,a4paper,twoside]{article}
+
+% Include packages that contain additional features, for example including special mathematical characters and images in your document
+\usepackage{amssymb,amsmath,graphicx}
+\usepackage[hidelinks]{hyperref}
+\usepackage{verbatim}
+\usepackage{listings}
+%\usepackage{pdfpages}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{Exercises V}
+\author{Robin Greif (Exercise 3 Francisco Aros), Lia Hankla (Exercise 2 Victor Ksoll)}
+\date{Due 2018/05/25}
+
+\begin{document}
+\maketitle
+
+\section*{Exercise 2}
+\subsection*{1. Gaussian Elimination}
+Gaussian elimination means putting the matrix into row echelon form, i.e. getting rid of the coefficients $a_i$, where the set of equations reads $a_ix_{i-1}+b_ix_i+c_ix_{i+1}$ with $i=1...N$ and $a_1=c_N=0$. In the following we do not bother making the diagonal components $b_i$ equal to 1, the usual first step in Gaussian elimination. Doing so would simply result in dividing by a $b_i$. \\
+\\
+Before reduction, an arbitrary two rows will have the form
+\begin{align*}
+a_ix_{i-1}+b_ix_i+c_ix_{i+1}&=y_i\\
+a_{i+1}x_i+b_{i+1}x_{i+1}+c_{i+1}x_{i+2}&=y_{i+1}
+\end{align*}
+After reducing the first row (row $i$) and hence removing $a_i$, the coefficients read
+\begin{align}
+\tilde b_ix_i+\tilde c_ix_{i+1}&=\tilde y_i \label{eq:bi1}\\
+a_{i+1}x_i+b_{i+1}x_{i+1}+c_{i+1}x_{i+2}&=y_{i+1} \label{eq:bi2}
+\end{align}
+We see that for the first row, $\tilde b_1=b_1$, $\tilde c_i=c_i$ since this row is the starting point of the algorithm. For the other rows, we now eliminate $a_{i+1}$ by multiplying row $i+1$ by $\tilde b_i$ and subtracting row $i$ multiplied by $a_{i+1}$, leading to:
+\begin{align*}
+(\tilde b_i a_{i+1}-a_{i+1}\tilde b_i)x_i+(\tilde b_i b_{i+1}-a_{i+1}\tilde c_i)x_{i+1}+\tilde b_ic_{i+1}x_{i+2}&=\tilde b_iy_{i+1}-a_{i+1}\tilde y_i\\
+\Rightarrow \tilde a_{i+1}x_{i+1}+\tilde b_{i+1} x_{i+1}+\tilde c_{i+1}x_{i+2} &= \tilde y_{i+1}
+\end{align*}
+where 
+\begin{align*}
+\tilde a_{i+1}&=0 & \tilde b_{i+1}&=\tilde b_ib_{i+1}-a_{i+1}\tilde c_i\\
+\tilde c_{i+1}&=\tilde b_ic_{i+1} & \tilde y_{i+1}&=\tilde b_iy_{i+1}-a_{i+1}\tilde y_i
+\end{align*}
+Looping through the rows ($i=2...N$) yields an echelon form matrix ready for backwards substitution. We call this subroutine \verb|gaussian_elimination|:
+\begin{verbatim}
+def gaussian_elimination(a, b, c, y):
+    """Given coefficients in an NxN tridiagonal matrix,
+       reduce to echelon form.
+       a, b, c, y: Nx1 arrays such that
+       a_i x_{i-1} + b_i x_i + c_i x_{i+1} = y_i
+       Note that a_1 and c_N should be 0.
+       """
+    N = a.size
+
+    for i in range(1, N):
+        y[i] = b[i - 1] * y[i] - a[i] * y[i - 1]
+        b[i] = b[i - 1] * b[i] - a[i] * c[i - 1]
+        c[i] = c[i] * b[i - 1]
+        a[i] = 0
+    return b, c, y
+\end{verbatim}
+
+\subsection*{2. Backwards Elimination}
+Once the matrix is in echelon form, the last row has only one entry: $b_Nx_N=y_N$. We can solve this immediately for $x_N=y_N/b_N$ and use it in the rest of the equations. For the second-to-last row, we have
+\begin{align*}
+b_{N-1}x_{N-1}+c_{N-1}x_N&=y_{N-1}\\
+\Rightarrow x_{N-1}&=\frac1{b_{N-1}}(y_{N-1}-c_{N-1}x_N)
+\end{align*}
+where the tildes have been dropped. Generalizing to a row $i$ and looping through the rows backwards ($i=N, N-1,...2$),
+\begin{align*}
+x_i&=\frac1{b_i}(y_i-c_ix_{i+1})
+\end{align*}
+where again $c_N=0$. We name this subroutine \verb|backwards_substitution|:
+\begin{verbatim}
+def backwards_substitution(b, c, y):
+    """Given coefficients in an NxN echelon form matrix,
+    use backwards substitution to solve for x.
+    All inputs are Nx1 arrays such that
+    b_i x_i + c_i x_{i+1} = y_i.
+    Note that c_N should be 0. """
+    N = b.size
+    x = np.zeros(N + 1)  # For last row
+    for i in range(N - 1, -1, -1):
+        x[i] = (y[i] - c[i] * x[i + 1]) / b[i]
+    return x[:-1]
+\end{verbatim}
+
+\subsection*{3. Gaussian Solve}
+With our two subroutines in hand, the solving itself goes fairly easily:
+\begin{verbatim}
+def gaussian_solve(a, b, c, y):
+    """Given coefficients in an NxN tridiagonal matrix,
+        use gaussian elimination and backwards substitution
+        to solve for x.
+        All inputs are Nx1 arrays such that
+        a_i x_{i-1} + b_i x_i + c_i x_{i+1} = y_i.
+        Note that a_0, c_N should be 0.
+        """
+    b, c, y = gaussian_elimination(a, b, c, y)
+    x = backwards_substitution(b, c, y)
+    return x
+\end{verbatim}
+
+\subsection*{4. Example Solve}
+With $a_i=-1$, $b_i=2$, $c_i=-1$, and $y_i=0.1$, we find 
+\begin{equation*}
+\vec x = (0.5,~ 0.9,~ 1.2,~ 1.4, ~1.5, ~1.5,~ 1.4,~ 1.2,~ 0.9, ~0.5)
+\end{equation*}
+
+\subsection*{5. Solver Check}
+Multiplying the tridiagonal matrix by the solution found above, we achieve relative errors on the order of $10^{-15}$ and $10^{-16}$, which is pretty good. 
+
+\end{document}
+
